@@ -1,0 +1,66 @@
+# todos os programas usam a mesma imagem, construída no serviço veiculos
+x-app: &app
+  image: denatran-mqtt
+  pull_policy: never
+  environment:
+    MQTT_BROKER: tcp://mosquitto:1883
+    PASTA_DADOS: /dados
+  depends_on:
+    mosquitto:
+      condition: service_healthy
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - dados-mosquitto:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  veiculos:
+    <<: *app
+    build: .
+    command: ["java", "-cp", "app.jar", "detran.ServicoVeiculos"]
+    volumes:
+      - dados-veiculos:/dados
+
+  condutores:
+    <<: *app
+    command: ["java", "-cp", "app.jar", "detran.ServicoCondutores"]
+    volumes:
+      - dados-condutores:/dados
+
+  multas:
+    <<: *app
+    command: ["java", "-cp", "app.jar", "detran.ServicoMultas"]
+    volumes:
+      - dados-multas:/dados
+
+  # docker compose run --rm terminal
+  terminal:
+    <<: *app
+    profiles: ["cliente"]
+    command: ["java", "-cp", "app.jar", "detran.Terminal"]
+    environment:
+      MQTT_BROKER: tcp://mosquitto:1883
+      UF: SE
+    stdin_open: true
+    tty: true
+
+  # docker compose run --rm teste
+  teste:
+    <<: *app
+    profiles: ["cliente"]
+    command: ["java", "-cp", "app.jar", "detran.Teste"]
+
+volumes:
+  dados-mosquitto:
+  dados-veiculos:
+  dados-condutores:
+  dados-multas:
